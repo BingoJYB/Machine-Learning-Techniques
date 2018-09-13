@@ -14,7 +14,7 @@ def divide_digit(dataframe, digit):
     return dataframe
 
 
-def calclute_Ein(predict_y, y):
+def calclute_error(predict_y, y):
     return (np.array(predict_y) != np.array(y)).sum()
 
 
@@ -29,14 +29,23 @@ def Q16_Q17(x, y):
     clf.fit(x, y)
     dual_coefs = clf.dual_coef_[0]
     predict_y = clf.predict(x)
-    return calclute_Ein(predict_y, y), dual_coefs
+    return calclute_error(predict_y, y), dual_coefs
 
 
-def Q18(x, y):
+def Q18(x_train, y_train, x_test, y_test):
+    sv_num = []
+    Eout_list = []
+    
     for c in [0.001, 0.01, 0.1, 1, 10]:
         clf = svm.SVC(C=c, kernel='rbf', gamma=100)
-        clf.fit(x, y)
-        print(clf.coef_)
+        clf.fit(x_train, y_train)
+        
+        predict_y = clf.predict(x_test)
+        
+        sv_num.append(len(clf.support_vectors_))
+        Eout_list.append(calclute_error(predict_y, y_test))
+        
+    return sv_num, Eout_list
 
 
 # Q15
@@ -67,6 +76,19 @@ print(dual_coef_max)
 
 # Q18
 dataframe = divide_digit(read_file('train.txt'), 0)
-x = list(zip(dataframe['intensity'], dataframe['symmetry']))
-y = dataframe['tag']
-Q18(x, y)
+x_train = list(zip(dataframe['intensity'], dataframe['symmetry']))
+y_train = dataframe['tag']
+
+dataframe = divide_digit(read_file('test.txt'), 0)
+x_test = list(zip(dataframe['intensity'], dataframe['symmetry']))
+y_test = dataframe['tag']
+
+sv_num, Eout_list = Q18(x_train, y_train, x_test, y_test)
+
+print(sv_num)
+print(Eout_list)
+
+
+
+
+
