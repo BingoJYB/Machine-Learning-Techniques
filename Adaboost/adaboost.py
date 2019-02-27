@@ -1,13 +1,28 @@
 import numpy as np
 
 
-def calculateOneDimEin(X, Y):
+def read_data(filename):
+    data = np.loadtxt(filename)
+    X = data[:, :-1]
+    Y = data[:, -1]
+    return X, Y
+
+
+def decision_stump_one_dim(X, Y):
     min_Ein = np.inf
     best_s = 0
     best_theta = 0
+    thresholds = [-np.inf]
+
+    data = sorted(zip(X, Y))
+    X = np.asarray(list(zip(*data))[0])
+    Y = np.asarray(list(zip(*data))[1])
+
+    for i in range(X.shape[0]-1):
+        thresholds.append(X[i] + X[i+1] / 2.0)
 
     for s in [1, -1]:
-        for theta in np.nditer(X):
+        for theta in thresholds:
             temp_X = np.copy(X)
             temp_X[temp_X >= theta] = 1 * s
             temp_X[temp_X < theta] = -1 * s
@@ -22,12 +37,12 @@ def calculateOneDimEin(X, Y):
             if Ein < min_Ein:
                 min_Ein = Ein
                 best_s = s
-                best_theta = abs(theta)
+                best_theta = theta
 
     return min_Ein, best_s, best_theta
 
 
-def calculateMultiDimEin(X, Y):
+def decision_stump_multi_dim(X, Y):
     Eins = []
     ss = []
     thetas = []
@@ -37,9 +52,9 @@ def calculateMultiDimEin(X, Y):
     best_dim = 0
     Y = np.asarray(Y, dtype=float)
 
-    for x in X:
-        x = np.asarray(x, dtype=float)
-        Ein, s, theta = calculateOneDimEin(x, Y)
+    for col in range(X.shape[1]):
+        x = np.asarray(X[:, col], dtype=float)
+        Ein, s, theta = decision_stump_one_dim(x, Y)
         Eins.append(Ein)
         ss.append(s)
         thetas.append(theta)
@@ -53,3 +68,11 @@ def calculateMultiDimEin(X, Y):
 
     return min_Ein, best_s, best_theta, best_dim
 
+
+if __name__ == '__main__':
+    train_X, train_Y = read_data('hw2_adaboost_train.dat')
+    test_X, test_Y = read_data('hw2_adaboost_test.dat')
+
+    min_Ein, best_s, best_theta, best_dim = decision_stump_multi_dim(train_X, train_Y)
+
+    print(min_Ein, best_s, best_theta, best_dim)
