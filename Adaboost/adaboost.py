@@ -8,15 +8,16 @@ def read_data(filename):
     return X, Y
 
 
-def decision_stump_one_dim(X, Y):
+def decision_stump_one_dim(U, X, Y):
     min_Ein = np.inf
     best_s = 0
     best_theta = 0
     thresholds = [-np.inf]
 
-    data = sorted(zip(X, Y))
+    data = sorted(zip(X, Y, U))
     X = np.asarray(list(zip(*data))[0])
     Y = np.asarray(list(zip(*data))[1])
+    U = np.asarray(list(zip(*data))[2])
 
     for i in range(X.shape[0]-1):
         thresholds.append(X[i] + X[i+1] / 2.0)
@@ -26,12 +27,12 @@ def decision_stump_one_dim(X, Y):
             temp_X = np.copy(X)
             temp_X[temp_X >= theta] = 1 * s
             temp_X[temp_X < theta] = -1 * s
-            Ein1 = np.sum(temp_X != Y) / X.shape[0]
+            Ein1 = np.sum((temp_X != Y) * U)
 
             temp_X = np.copy(X)
             temp_X[temp_X >= theta] = -1 * s
             temp_X[temp_X < theta] = 1 * s
-            Ein2 = np.sum(temp_X != Y) / X.shape[0]
+            Ein2 = np.sum((temp_X != Y) * U)
 
             Ein = min(Ein1, Ein2)
             if Ein < min_Ein:
@@ -42,7 +43,7 @@ def decision_stump_one_dim(X, Y):
     return min_Ein, best_s, best_theta
 
 
-def decision_stump_multi_dim(X, Y):
+def decision_stump_multi_dim(U, X, Y):
     Eins = []
     ss = []
     thetas = []
@@ -54,7 +55,7 @@ def decision_stump_multi_dim(X, Y):
 
     for col in range(X.shape[1]):
         x = np.asarray(X[:, col], dtype=float)
-        Ein, s, theta = decision_stump_one_dim(x, Y)
+        Ein, s, theta = decision_stump_one_dim(U, x, Y)
         Eins.append(Ein)
         ss.append(s)
         thetas.append(theta)
@@ -69,10 +70,36 @@ def decision_stump_multi_dim(X, Y):
     return min_Ein, best_s, best_theta, best_dim
 
 
+def gt(s, theta, X):
+    return s * np.sign(X - theta)
+
+
+def update_parameter(U, X, Y, s, theta, Ein):
+    epsilon = Ein / np.sum(U)
+    diamond_t = np.sqrt((1 - epsilon) / epsilon)
+
+    Y_prime = gt(s, theta, X)
+    incorrect = (Y_prime != Y) * U * diamond_t
+    correct = (Y_prime == Y) * U / diamond_t
+    new_U = correct + incorrect
+    alpha = np.log(diamond_t)
+
+    return new_U, alpha
+
+
 if __name__ == '__main__':
     train_X, train_Y = read_data('hw2_adaboost_train.dat')
     test_X, test_Y = read_data('hw2_adaboost_test.dat')
+    U = 1 / train_X.shape[0] * np.ones(train_X.shape[0])
+    gt_parameters = []
+    result = 0
 
-    min_Ein, best_s, best_theta, best_dim = decision_stump_multi_dim(train_X, train_Y)
+    for i in range(300):
+        Ein, s, theta, dim = decision_stump_multi_dim(U, train_X, train_Y)
+        U, alpha = update_parameter(U, train_X[:, dim], train_Y, s, theta, Ein)
+        gt_parameters.append((alpha, s, theta, dim))
 
-    print(min_Ein, best_s, best_theta, best_dim)
+    for parameters in gt_parameters:
+        result = result + parameters[0] * gt(parameters[1], parameters[2], train_X[:, parameters[3]])
+
+    print(np.sign(result))
