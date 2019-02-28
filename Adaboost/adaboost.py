@@ -5,65 +5,54 @@ def read_data(filename):
     data = np.loadtxt(filename)
     X = data[:, :-1]
     Y = data[:, -1]
+
     return X, Y
 
 
 def decision_stump_one_dim(U, X, Y):
-    min_Ein = np.inf
+    min_err = 1
     best_s = 0
     best_theta = 0
-    thresholds = [-np.inf]
-    X_hat = np.asarray(sorted(X))
+    thetas = [-np.inf]
+    X_hat = np.sort(X)
 
-    for i in range(X_hat.shape[0]-1):
-        thresholds.append(X_hat[i] + X_hat[i+1] / 2)
+    for i in range(len(X_hat) - 1):
+        thetas.append((X_hat[i] + X_hat[i + 1]) / 2)
 
-    for s in [1, -1]:
-        for theta in thresholds:
-            temp_X = np.copy(X)
-            temp_X[temp_X >= theta] = 1 * s
-            temp_X[temp_X < theta] = -1 * s
-            Ein1 = (temp_X != Y).T.dot(U)
+    for theta in thetas:
+        s = 1
+        y_predict = np.sign(X - theta)
+        err = np.sum((Y != y_predict) * U) / len(X)
+        err2 = np.sum((Y != (-1 * y_predict)) * U) / len(X)
 
-            temp_X = np.copy(X)
-            temp_X[temp_X >= theta] = -1 * s
-            temp_X[temp_X < theta] = 1 * s
-            Ein2 = (temp_X != Y).T.dot(U)
+        if err2 < err:
+            err = err2
+            s = -1
 
-            Ein = min(Ein1, Ein2)
-            if Ein < min_Ein:
-                min_Ein = Ein
-                best_s = s
-                best_theta = theta
+        if err <= min_err:
+            best_s = s
+            best_theta = theta
+            min_err = err
 
-    return min_Ein, best_s, best_theta
+    return min_err, best_s, best_theta
 
 
 def decision_stump_multi_dim(U, X, Y):
-    Eins = []
-    ss = []
-    thetas = []
-    min_Ein = np.inf
+    min_err = 1
     best_s = 0
     best_theta = 0
     best_dim = 0
-    Y = np.asarray(Y, dtype=float)
 
     for col in range(X.shape[1]):
-        x = np.asarray(X[:, col], dtype=float)
-        Ein, s, theta = decision_stump_one_dim(U, x, Y)
-        Eins.append(Ein)
-        ss.append(s)
-        thetas.append(theta)
+        err, s, theta = decision_stump_one_dim(U, X[:, col], Y)
 
-    for idx, val in enumerate(Eins):
-        if val < min_Ein:
-            min_Ein = val
-            best_s = ss[idx]
-            best_theta = thetas[idx]
-            best_dim = idx
+        if err < min_err:
+            min_err = err
+            best_s = s
+            best_theta = theta
+            best_dim = col
 
-    return min_Ein, best_s, best_theta, best_dim
+    return min_err, best_s, best_theta, best_dim
 
 
 def gt(s, theta, X):
@@ -71,11 +60,11 @@ def gt(s, theta, X):
 
 
 def update_parameter(U, X, Y, s, theta, err):
-    Y_hat = gt(s, theta, X)
     epsilon = err / np.sum(U)
-    diamond_t = np.sqrt((1 - epsilon) / epsilon)
-    U = np.where(Y_hat != Y, U * diamond_t, U / diamond_t)
-    alpha = np.log(diamond_t)
+    t = np.sqrt((1 - epsilon) / epsilon)
+    Y_hat = gt(s, theta, X)
+    U = np.where(Y_hat != Y, U * t, U / t)
+    alpha = np.log(t)
 
     return U, alpha
 
@@ -84,15 +73,15 @@ if __name__ == '__main__':
     train_X, train_Y = read_data('hw2_adaboost_train.dat')
     test_X, test_Y = read_data('hw2_adaboost_test.dat')
     U = 1 / train_X.shape[0] * np.ones(train_X.shape[0])
-    gt_parameters = []
-    result = np.zeros(train_X.shape[0])
+    G = []
+    err_in_G = np.zeros(test_X.shape[0])
 
     for i in range(300):
         err, s, theta, dim = decision_stump_multi_dim(U, train_X, train_Y)
         U, alpha = update_parameter(U, train_X[:, dim], train_Y, s, theta, err)
-        gt_parameters.append((alpha, s, theta, dim))
+        G.append((alpha, s, theta, dim))
 
-    for parameters in gt_parameters:
-        result = result + parameters[0] * gt(parameters[1], parameters[2], train_X[:, parameters[3]])
+    for g_param in G:
+        err_in_G = err_in_G + g_param[0] * gt(g_param[1], g_param[2], test_X[:, g_param[3]])
 
-    print(np.sum(np.sign(result) != train_Y) / train_X.shape[0])
+    print(np.sum(np.sign(err_in_G) != test_Y) / test_X.shape[0])
