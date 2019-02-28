@@ -13,26 +13,22 @@ def decision_stump_one_dim(U, X, Y):
     best_s = 0
     best_theta = 0
     thresholds = [-np.inf]
+    X_hat = np.asarray(sorted(X))
 
-    data = sorted(zip(X, Y, U))
-    X = np.asarray(list(zip(*data))[0])
-    Y = np.asarray(list(zip(*data))[1])
-    U = np.asarray(list(zip(*data))[2])
-
-    for i in range(X.shape[0]-1):
-        thresholds.append(X[i] + X[i+1] / 2.0)
+    for i in range(X_hat.shape[0]-1):
+        thresholds.append(X_hat[i] + X_hat[i+1] / 2)
 
     for s in [1, -1]:
         for theta in thresholds:
             temp_X = np.copy(X)
             temp_X[temp_X >= theta] = 1 * s
             temp_X[temp_X < theta] = -1 * s
-            Ein1 = np.sum((temp_X != Y) * U)
+            Ein1 = (temp_X != Y).T.dot(U)
 
             temp_X = np.copy(X)
             temp_X[temp_X >= theta] = -1 * s
             temp_X[temp_X < theta] = 1 * s
-            Ein2 = np.sum((temp_X != Y) * U)
+            Ein2 = (temp_X != Y).T.dot(U)
 
             Ein = min(Ein1, Ein2)
             if Ein < min_Ein:
@@ -74,17 +70,14 @@ def gt(s, theta, X):
     return s * np.sign(X - theta)
 
 
-def update_parameter(U, X, Y, s, theta, Ein):
-    epsilon = Ein / np.sum(U)
+def update_parameter(U, X, Y, s, theta, err):
+    Y_hat = gt(s, theta, X)
+    epsilon = err / np.sum(U)
     diamond_t = np.sqrt((1 - epsilon) / epsilon)
-
-    Y_prime = gt(s, theta, X)
-    incorrect = (Y_prime != Y) * U * diamond_t
-    correct = (Y_prime == Y) * U / diamond_t
-    new_U = correct + incorrect
+    U = np.where(Y_hat != Y, U * diamond_t, U / diamond_t)
     alpha = np.log(diamond_t)
 
-    return new_U, alpha
+    return U, alpha
 
 
 if __name__ == '__main__':
@@ -92,14 +85,14 @@ if __name__ == '__main__':
     test_X, test_Y = read_data('hw2_adaboost_test.dat')
     U = 1 / train_X.shape[0] * np.ones(train_X.shape[0])
     gt_parameters = []
-    result = 0
+    result = np.zeros(train_X.shape[0])
 
     for i in range(300):
-        Ein, s, theta, dim = decision_stump_multi_dim(U, train_X, train_Y)
-        U, alpha = update_parameter(U, train_X[:, dim], train_Y, s, theta, Ein)
+        err, s, theta, dim = decision_stump_multi_dim(U, train_X, train_Y)
+        U, alpha = update_parameter(U, train_X[:, dim], train_Y, s, theta, err)
         gt_parameters.append((alpha, s, theta, dim))
 
     for parameters in gt_parameters:
         result = result + parameters[0] * gt(parameters[1], parameters[2], train_X[:, parameters[3]])
 
-    print(np.sign(result))
+    print(np.sum(np.sign(result) != train_Y) / train_X.shape[0])
